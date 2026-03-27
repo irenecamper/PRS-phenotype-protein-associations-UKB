@@ -194,8 +194,8 @@ p_combined <- make_forest_plot(
   datatype      = "prs_associations",
   plot_type     = "forest_plot",
   outputpath    = OUTPUT_FIGURES,
-  width         = 3600,
-  height        = 2800
+  width         = 3200,
+  height        = 2400
 )
 
 p_combined
@@ -259,8 +259,8 @@ p_combined_bmi_adj <- make_forest_plot(
   datatype      = "prs_associations",
   plot_type     = "forest_plot_bmi_adj",
   outputpath    = OUTPUT_FIGURES,
-  width         = 3600,
-  height        = 2800
+  width         = 3200,
+  height        = 2400
 )
 
 p_combined_bmi_adj
@@ -305,7 +305,7 @@ protein_results <- run_lm_grid(
   trans_map    = setNames(character(0), character(0)),
   panel_lookup = panel_lookup,
   model_filter = "linear"
-)
+) %>% dplyr::mutate(pvalue_fdr = stats::p.adjust(pvalue, method = "fdr"))
 ```
 
 ```{r volcano-plot, fig.width=16, fig.height=4}
@@ -320,8 +320,9 @@ p_volcano <- plot_volcano_prs_proteins(
   outputpath   = OUTPUT_FIGURES,
   save         = TRUE,
   dpi          = 300,
-  width        = 2800,
-  height       = 2800
+  width        = 2400,
+  height       = 2400,
+  plot_type = "volcano_plot"
 )
 
 p_volcano
@@ -341,7 +342,7 @@ protein_results_bmi_adj <- run_lm_grid(
   trans_map    = setNames(character(0), character(0)),
   panel_lookup = panel_lookup,
   model_filter = "linear"
-)
+) %>% dplyr::mutate(pvalue_fdr = stats::p.adjust(pvalue, method = "fdr"))
 ```
 
 ```{r volcano-plot-bmi-adj, fig.width=16, fig.height=4}
@@ -356,8 +357,9 @@ p_volcano_bmi_adj <- plot_volcano_prs_proteins(
   outputpath   = OUTPUT_FIGURES,
   save         = TRUE,
   dpi          = 300,
-  width        = 2800,
-  height       = 2800
+  width        = 2400,
+  height       = 2400,
+  plot_type = "volcano_plot_bmi_adj"
 )
 
 p_volcano_bmi_adj
@@ -408,4 +410,48 @@ write_workbook(
   ),
   out_bmi
 )
+```
+
+
+```{r}
+p_dentures_prop <- plot_binary_by_prs_decile(
+  data = data,
+  position_type = "fill",
+  var = "has_dentures",
+  output_dir = OUTPUT_FIGURES,
+  datatype = "phenotype",
+  plot_type = "dentures_prs_deciles_fill",
+
+      width = 2400,
+      height = 2400
+)
+
+p_dentures_prop
+```
+
+```{r}
+PHENOTYPES_OF_INTEREST <- c("CST5", "CA12", "CST1", "CGREF1", "GHRL")
+
+protein_plots <- purrr::map(
+  PHENOTYPES_OF_INTEREST,
+  function(protein_name) {
+    
+    plot_protein_by_prs_decile(
+      data = data_protein,
+      protein = protein_name,
+      output_dir = OUTPUT_FIGURES,
+      datatype = "protein",
+      plot_type = paste0(
+        protein_name,
+        "_prs_deciles_median_iqr"
+      ),
+      LOWER = -1,
+      UPPER = 1,
+      width = 2400,
+      height = 2400
+    )
+  }
+)
+
+names(protein_plots) <- PHENOTYPES_OF_INTEREST
 ```

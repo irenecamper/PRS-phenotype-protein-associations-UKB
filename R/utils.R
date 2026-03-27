@@ -586,7 +586,7 @@ plot_volcano_prs_proteins <- function(
     ggplot2::scale_color_manual(values = color_map, name = "Olink panel") +
     ggplot2::scale_size_manual(values  = size_map,  name = "Significance") +
     ggrepel::geom_label_repel(ggplot2::aes(label = .data$label_top), fill = "white", box.padding = 0.5, size = 3, na.rm = TRUE, show.legend = FALSE) +
-    ggplot2::labs(x = "Effect size (PRS)", y = "-log10(P-value)") +
+    ggplot2::labs(x = "Effect size (PRS)", y = "-log10(p-value)") +
     ggplot2::scale_x_continuous(breaks = x_breaks, labels = function(x) sprintf("%.1f", x)) +
     make_theme() +
     ggplot2::theme(strip.text.y = ggplot2::element_text(angle = -90, hjust = 0, vjust = 0), legend.position = "right", plot.caption = ggplot2::element_text(size = 8), aspect.ratio = 1)
@@ -597,4 +597,207 @@ plot_volcano_prs_proteins <- function(
   }
 
   p
+}
+
+plot_binary_by_prs_decile <- function(data,
+                                      var,
+                                      prs_var = "prs",
+                                      n = 10,
+                                      position_type = c("stack", "fill", "dodge"),
+                                      output_dir = NULL,
+                                      datatype = NULL,
+                                      plot_type = NULL,
+                                      width = 2400,
+                                      height = 2400,
+                                      dpi = 300) {
+  
+  position_type <- match.arg(position_type)
+  
+  required_cols <- c(prs_var, var)
+  missing_cols <- setdiff(required_cols, names(data))
+  
+  if (length(missing_cols) > 0) {
+    stop("Missing columns: ", paste(missing_cols, collapse = ", "))
+  }
+  
+  df_plot <- data %>%
+    dplyr::select(
+      prs_value = dplyr::all_of(prs_var),
+      binary_value = dplyr::all_of(var)
+    ) %>%
+    tidyr::drop_na() %>%
+    dplyr::mutate(
+      prs_decile = dplyr::ntile(prs_value, n),
+      prs_decile = factor(
+        prs_decile,
+        levels = 1:n,
+        labels = paste0("D", 1:n)
+      ),
+      binary_label = dplyr::case_when(
+        binary_value == 0 ~ "No",
+        binary_value == 1 ~ "Yes",
+        TRUE ~ NA_character_
+      ),
+      binary_label = factor(binary_label, levels = c("No", "Yes"))
+    ) %>%
+    tidyr::drop_na(binary_label)
+  
+  count_df <- df_plot %>%
+    dplyr::count(prs_decile, binary_label)
+  
+  legend_title <- gsub("_", " ", toupper(var))
+  
+  p <- ggplot2::ggplot(
+    count_df,
+    ggplot2::aes(
+      x = prs_decile,
+      y = n,
+      fill = binary_label
+    )
+  ) +
+    ggplot2::geom_col(
+      position = position_type,
+      width = 0.7
+    ) +
+    ggplot2::scale_fill_manual(
+      values = c("No" = "#BDBDBD", "Yes" = "#E78AC3"),
+      name = legend_title
+    ) +
+    ggplot2::labs(
+      x = "PRS decile",
+      y = if (position_type == "fill") "Proportion" else "Number of individuals"
+    ) +
+    make_theme() +
+    ggplot2::theme(
+      aspect.ratio = 1
+    )
+  
+  if (position_type == "fill") {
+    p <- p + ggplot2::scale_y_continuous(labels = scales::percent)
+  }
+  
+  if (!is.null(output_dir) && !is.null(datatype) && !is.null(plot_type)) {
+  
+  fname <- make_fig_filename(
+    datatype = datatype,
+    plot_type = plot_type,
+    ext = "png"
+  )
+  
+  if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+  
+  file_out <- file.path(output_dir, fname)
+  
+  ggplot2::ggsave(
+    filename = file_out,
+    plot = p,
+    width = width/dpi,
+    height = height/dpi,
+    dpi = dpi
+  )
+}
+  
+  return(p)
+}
+
+plot_protein_by_prs_decile <- function(data,
+                                       protein,
+                                       prs_var = "prs",
+                                       id_var = "eid",
+                                       output_dir = NULL,
+                                       datatype = NULL,
+                                       plot_type = NULL,
+                                       width = 2400,
+                                       height = 2400,
+                                       dpi = 300,
+                                       LOWER = -3,
+                                       UPPER = 3,
+                                       n = 10) {
+  
+  required_cols <- c(id_var, protein, prs_var)
+  missing_cols <- setdiff(required_cols, names(data))
+  
+  if (length(missing_cols) > 0) {
+    stop("Missing columns: ", paste(missing_cols, collapse = ", "))
+  }
+  
+  df <- data %>%
+    dplyr::select(
+      dplyr::all_of(id_var),
+      protein_value = dplyr::all_of(protein),
+      prs_value = dplyr::all_of(prs_var)
+    ) %>%
+    tidyr::drop_na()
+  
+  df_plot <- df %>%
+    dplyr::mutate(
+      prs_decile = dplyr::ntile(prs_value, n),
+      prs_decile = factor(
+        prs_decile,
+        levels = 1:n,
+        labels = paste0("D", 1:n)
+      )
+    )
+  
+  p <- ggplot2::ggplot(
+    df_plot,
+    ggplot2::aes(
+      x = prs_decile,
+      y = protein_value
+    )
+  ) +
+    ggplot2::geom_jitter(
+      width = 0.08,
+      height = 0,
+      size = 0.2,
+      alpha = 0.02,
+      color = "black"
+    ) +
+    ggplot2::stat_summary(
+      fun.data = function(x) {
+        data.frame(
+          y = median(x),
+          ymin = quantile(x, 0.25),
+          ymax = quantile(x, 0.75)
+        )
+      },
+      geom = "pointrange",
+      linewidth = 0.6,
+      color = "black"
+    ) +
+    ggplot2::labs(
+      x = "PRS decile",
+      y = "Median \u00B1 IQR",
+      subtitle = paste0("Protein: ", protein),
+    ) +
+    make_theme() +
+    ggplot2::coord_cartesian(ylim = c(LOWER, UPPER)) +
+    ggplot2::theme(
+      legend.position = "none",
+      panel.grid.major.x = ggplot2::element_blank(),
+      aspect.ratio = 1
+    )
+  
+  if (!is.null(output_dir) && !is.null(datatype) && !is.null(plot_type)) {
+  
+  fname <- make_fig_filename(
+    datatype = datatype,
+    plot_type = plot_type,
+    ext = "png"
+  )
+  
+  if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+  
+  file_out <- file.path(output_dir, fname)
+  
+  ggplot2::ggsave(
+    filename = file_out,
+    plot = p,
+    width = width/dpi,
+    height = height/dpi,
+    dpi = dpi
+  )
+}
+  
+  return(p)
 }
