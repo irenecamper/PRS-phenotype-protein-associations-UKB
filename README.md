@@ -1,1 +1,0 @@
-# PRS-phenotype-protein-associations-UKB

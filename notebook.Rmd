@@ -1,0 +1,405 @@
+---
+title: "carpe-diem-ukb analysis notebook"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+source("R/utils.R")
+source("R/packages.R")
+```
+
+## configuration
+
+```{r config}
+# ── paths ─────────────────────────────────────────────────────────────────────
+METADATA_CSV       <- "inputs/ukb_metadata.csv"
+DATA_PARTICIPANT   <- "inputs/data_participant.csv"
+DATA_PRS           <- "inputs/PRS_pred_allchr.sscore"
+DATA_ICD10         <- "inputs/data_diag_hesin.csv"
+DATA_PROTEIN_BATCH <- "inputs/pro_batch_fastingtime.rds"
+DATA_PROTEIN_MAP   <- "inputs/protein_panel_map.rds"
+
+OUTPUT_FIGURES     <- "figures"
+OUTPUT_RESULTS     <- "results"
+
+# ── analysis parameters ───────────────────────────────────────────────────────
+CONF_LEVEL <- 0.95
+COVARIATES <- c(
+  "age", "sex",
+  paste0("pc", 1:10)
+)
+
+# ── display aesthetics ────────────────────────────────────────────────────────
+TRAIT_COLORS <- c(
+  "Cardiovascular disease" = "#3B7EA1",
+  "Metabolic disease"      = "#B07AA1",
+  "Psychiatric disorder"   = "#E39C37",
+  "Sociodemographic factor"       = "#2C8C69",
+  "Adiposity"              = "#C7B83C",
+  "Glycemic"               = "#6BAED6",
+  "Cardiovascular" = "#4DAF8A",
+  "Lipid"                  = "#C76D2B",
+  "Liver"                  = "#7B61A8",
+  "Dental caries" = "#E78AC3"
+)
+
+PANEL_COLORS <- c(
+  "Inflammation" = "#3F7193",
+  "Inflammation II" = "#3F7193",
+  "Cardiometabolic" = "#9D4764",
+  "Cardiometabolic II" = "#9D4764",
+  "Oncology" = "#E8A65F",
+  "Oncology II" = "#E8A65F",
+  "Neurology" = "#449064",
+  "Neurology II" = "#449064"
+)
+
+FACET_MAP <- c(
+  "Cardiovascular disease" = "Diseases & others",
+  "Metabolic disease"      = "Diseases & others",
+  "Psychiatric disorder"   = "Diseases & others",
+  "Sociodemographic factor"= "Diseases & others",
+  "Adiposity"              = "Cardiometabolic traits",
+  "Glycemic"               = "Cardiometabolic traits",
+  "Hormone"                = "Cardiometabolic traits",
+  "Lipid"                  = "Cardiometabolic traits",
+  "Liver"                  = "Cardiometabolic traits",
+  "Cardiovascular" = "Cardiometabolic traits",
+  "Dental caries"          = ""
+)
+```
+
+## load metadata maps
+
+```{r load-maps}
+maps <- load_maps(METADATA_CSV)
+
+rename_map       <- maps$rename_map
+var_name_map     <- maps$var_name_map
+var_trans_map    <- maps$var_trans_map
+var_category_map <- maps$var_category_map
+var_code_map     <- maps$var_code_map
+```
+
+## load and prepare data
+
+```{r load-data}
+data_participant <- read.csv(DATA_PARTICIPANT) %>%
+  dplyr::rename_with(
+    .fn   = ~ unname(rename_map[.x]),
+    .cols = dplyr::any_of(names(rename_map))
+  ) %>%
+  dplyr::mutate(eid = as.numeric(eid))
+
+data_participant$has_dentures <- ifelse(
+  data_participant$has_dentures == "Dentures", 1,
+  ifelse(data_participant$has_dentures == "None of the above", 0, NA)
+)
+
+data_prs <- read.table(DATA_PRS, header = TRUE) %>%
+  dplyr::rename(prs = SCORE1_SUM, eid = IID) %>%
+  dplyr::mutate(eid = as.numeric(eid))
+
+data_icd10 <- read.csv(DATA_ICD10, stringsAsFactors = FALSE) %>%
+  dplyr::mutate(eid = as.numeric(eid))
+
+# merge PRS onto participant data
+data_participant <- data_participant %>%
+  dplyr::left_join(data_prs, by = "eid")
+
+# join ICD-10 binary flags (data-driven from metadata)
+data <- safe_icd_join(
+  data         = data_participant,
+  data_icd10   = data_icd10,
+  metadata_csv = METADATA_CSV,
+  id_col       = "eid"
+)  %>%
+  dplyr::mutate(z_bmi = as.numeric(scale(bmi))) # add bmi for adj for bmi later
+```
+
+## define outcomes
+
+```{r define-outcomes}
+meta <- maps$metadata
+
+continuous_outcomes <- meta$variable[
+  meta$source_type == "direct" &
+    !is.na(meta$trait_type) &
+    meta$trait_type == "continuous"
+]
+
+binary_outcomes <- meta$variable[meta$trait_type == "binary"]
+
+all_outcomes <- c(continuous_outcomes, binary_outcomes)
+```
+
+## population characteristics
+
+```{r population-summary}
+population_summary <- summarise_population_characteristics_wide(
+  df              = data,
+  binary_vars     = binary_outcomes,
+  continuous_vars = continuous_outcomes,
+  sex_col         = "sex",
+  age_col         = "age",
+  id_col          = "eid"
+)
+```
+
+## PRS association analyses — without BMI adjustment
+
+```{r prs-associations}
+linear_results <- run_lm_grid(
+  df           = data,
+  outcomes     = continuous_outcomes,
+  predictors   = "prs",
+  covariates   = COVARIATES,
+  idcol        = "eid",
+  conf_level   = CONF_LEVEL,
+  trait_map    = var_category_map,
+  trans_map    = var_trans_map,
+  model_filter = "linear"
+)
+
+logistic_results <- run_lm_grid(
+  df           = data,
+  outcomes     = binary_outcomes,
+  predictors   = "prs",
+  covariates   = COVARIATES,
+  idcol        = "eid",
+  conf_level   = CONF_LEVEL,
+  trait_map    = var_category_map,
+  trans_map    = var_trans_map,
+  model_filter = "logistic"
+)
+
+combined_results <- dplyr::bind_rows(
+  linear_results,
+  logistic_results,
+) %>% dplyr::mutate(pvalue_fdr = stats::p.adjust(pvalue, method = "fdr"))
+```
+
+```{r forest-plots, fig.width=10, fig.height=10}
+p_combined <- make_forest_plot(
+  model_results = combined_results,
+  var_map       = var_name_map,
+  trait_map     = var_category_map,
+  facet_map     = FACET_MAP,
+  trait_colors  = TRAIT_COLORS,
+  datatype      = "prs_associations",
+  plot_type     = "forest_plot",
+  outputpath    = OUTPUT_FIGURES,
+  width         = 3600,
+  height        = 2800
+)
+
+p_combined
+```
+
+## PRS association analyses — with BMI adjustment
+
+```{r prs-associations-bmi}
+linear_results_bmi_adj <- run_lm_grid(
+  df           = data,
+  outcomes     = setdiff(continuous_outcomes, c("bmi", "waist", "hip", "body_fat_perc")),
+  predictors   = "prs",
+  covariates   = c(COVARIATES, "z_bmi"),
+  idcol        = "eid",
+  conf_level   = CONF_LEVEL,
+  trait_map    = var_category_map,
+  trans_map    = var_trans_map,
+  model_filter = "linear"
+)
+
+linear_results_bmi_adj_adiposity <- run_lm_grid(
+  df           = data,
+  outcomes     = c("bmi", "waist", "hip", "body_fat_perc"),
+  predictors   = "prs",
+  covariates   =  COVARIATES, # here we do not adjust for bmi sds
+  idcol        = "eid",
+  conf_level   = CONF_LEVEL,
+  trait_map    = var_category_map,
+  trans_map    = var_trans_map,
+  model_filter = "linear"
+)
+
+logistic_results_bmi_adj <- run_lm_grid(
+  df           = data,
+  outcomes     = binary_outcomes,
+  predictors   = "prs",
+  covariates   = c(COVARIATES, "z_bmi"),
+  idcol        = "eid",
+  conf_level   = CONF_LEVEL,
+  trait_map    = var_category_map,
+  trans_map    = var_trans_map,
+  model_filter = "logistic"
+) 
+
+linear_results_bmi_adj_combined <- dplyr::bind_rows(
+  linear_results_bmi_adj,
+  linear_results_bmi_adj_adiposity
+)
+
+combined_results_bmi_adj <- dplyr::bind_rows(linear_results_bmi_adj_combined, logistic_results_bmi_adj) %>% 
+  dplyr::mutate(pvalue_fdr = stats::p.adjust(pvalue, method = "fdr"))
+```
+
+```{r, fig.width=16, fig.height=10}
+p_combined_bmi_adj <- make_forest_plot(
+  model_results = combined_results_bmi_adj,
+  var_map       = var_name_map,
+  trait_map     = var_category_map,
+  facet_map     = FACET_MAP,
+  trait_colors  = TRAIT_COLORS,
+  datatype      = "prs_associations",
+  plot_type     = "forest_plot_bmi_adj",
+  outputpath    = OUTPUT_FIGURES,
+  width         = 3600,
+  height        = 2800
+)
+
+p_combined_bmi_adj
+```
+
+## Proteomics: data prep
+
+```{r proteomics-setup}
+data_protein_batch <- readRDS(DATA_PROTEIN_BATCH) %>%
+  dplyr::rename(batch = Batch) %>%
+  dplyr::mutate(z_fasting_time = as.numeric(scale(Fasting_time))) %>%
+  dplyr::select(-ins_index, -PlateID, -Fasting_time)
+
+protein_panel_map <- readRDS(DATA_PROTEIN_MAP) %>%
+  dplyr::rename(protein = Assay, panel = Panel) %>%
+  dplyr::select(protein, panel)
+
+panel_lookup       <- stats::setNames(protein_panel_map$panel, protein_panel_map$protein)
+PROTEINS           <- protein_panel_map$protein
+
+data_protein <- data %>%
+  dplyr::inner_join(data_protein_batch, by = "eid")
+```
+
+# PRS-protein associations - without BMI adjustment
+
+```{r protein-associations}
+protein_results <- run_lm_grid(
+  df           = data_protein,
+  outcomes     = PROTEINS,
+  predictors   = "prs",
+  covariates   = c(COVARIATES, "z_fasting_time"),
+  idcol        = "eid",
+  conf_level   = CONF_LEVEL,
+  trait_map    = panel_lookup,
+  trans_map    = setNames(character(0), character(0)),
+  panel_lookup = panel_lookup,
+  model_filter = "linear"
+)
+```
+
+```{r volcano-plot, fig.width=16, fig.height=4}
+p_volcano <- plot_volcano_prs_proteins(
+  results_df   = protein_results,
+  prs_name_map = c(prs = "PRS"),
+  cov_formula  = c(COVARIATES, "z_fasting_time"),
+  top_n        = 10,
+  p_nominal    = 0.05,
+  fdr_cutoff   = 0.05,
+  x_step       = 0.2,
+  outputpath   = OUTPUT_FIGURES,
+  save         = TRUE,
+  dpi          = 300,
+  width        = 2800,
+  height       = 2800
+)
+
+p_volcano
+```
+
+# PRS-protein associations - with BMI adjustment
+
+```{r protein-associations-bmi-adj}
+protein_results_bmi_adj <- run_lm_grid(
+  df           = data_protein,
+  outcomes     = PROTEINS,
+  predictors   = "prs",
+  covariates   = c(COVARIATES, "z_fasting_time", "z_bmi"),
+  idcol        = "eid",
+  conf_level   = CONF_LEVEL,
+  trait_map    = panel_lookup,
+  trans_map    = setNames(character(0), character(0)),
+  panel_lookup = panel_lookup,
+  model_filter = "linear"
+)
+```
+
+```{r volcano-plot-bmi-adj, fig.width=16, fig.height=4}
+p_volcano_bmi_adj <- plot_volcano_prs_proteins(
+  results_df   = protein_results_bmi_adj,
+  prs_name_map = c(prs = "PRS"),
+  cov_formula  = c(COVARIATES, "z_fasting_time", "z_bmi"),
+  top_n        = 10,
+  p_nominal    = 0.05,
+  fdr_cutoff   = 0.05,
+  x_step       = 0.2,
+  outputpath   = OUTPUT_FIGURES,
+  save         = TRUE,
+  dpi          = 300,
+  width        = 2800,
+  height       = 2800
+)
+
+p_volcano_bmi_adj
+```
+
+
+## Export results to Excel
+
+Two separate xlsx files are produced:
+- `results_*.xlsx`  — models without BMI adjustment
+- `results_bmi_adjusted_*.xlsx` — models with z_bmi as additional covariate
+
+```{r export-results}
+if (!dir.exists(OUTPUT_RESULTS)) dir.create(OUTPUT_RESULTS, recursive = TRUE)
+
+write_workbook <- function(sheet_list, filepath) {
+  wb <- openxlsx::createWorkbook()
+  for (sheet_name in names(sheet_list)) {
+    openxlsx::addWorksheet(wb, sheet_name)
+    openxlsx::writeData(wb, sheet_name, sheet_list[[sheet_name]])
+  }
+  openxlsx::saveWorkbook(wb, filepath, overwrite = TRUE)
+  message("saved: ", filepath)
+}
+
+# ── File 1: without BMI adjustment ────────────────────────────────────────────
+out_no_bmi <- file.path(OUTPUT_RESULTS, make_table_filename("results"))
+
+write_workbook(
+  list(
+    population_summary      = population_summary,
+    linear_regression_prs   = linear_results,
+    logistic_regression_prs = logistic_results,
+    olink_proteins_prs      = protein_results
+  ),
+  out_no_bmi
+)
+
+# ── File 2: with BMI adjustment ────────────────────────────────────────────────
+out_bmi <- file.path(OUTPUT_RESULTS, make_table_filename("results_bmi_adj"))
+
+write_workbook(
+  list(
+    population_summary      = population_summary,
+    linear_regression_prs   = linear_results_bmi_adj,
+    logistic_regression_prs = logistic_results_bmi_adj,
+    olink_protein_prs = protein_results_bmi_adj
+  ),
+  out_bmi
+)
+```

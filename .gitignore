@@ -1,0 +1,27 @@
+# ── R / renv ─────────────────────────────────────────────────────────────────
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# renv library (restored from renv.lock, not committed)
+renv/library/
+renv/staging/
+
+# ── Sensitive input data (UKB data access agreement) ─────────────────────────
+inputs/data_participant.csv
+inputs/data_diag_hesin.csv
+inputs/PRS_pred_allchr.sscore
+inputs/pro_batch_fastingtime.rds
+inputs/protein_panel_map.rds
+
+# ── Generated outputs (large, reproducible) ───────────────────────────────────
+figures/
+results/
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

@@ -1,0 +1,43 @@
+source_type;ukb_field;variable;label;trait_group;transformation;icd10_values;fill_missing;trait_type
+direct;eid;eid;PATID;Others;none;;;none
+direct;p31;sex;Sex;Others;none;;;none
+direct;p21003_i0;age;Age;Others;none;;;none
+direct;p4080_i0_a0;sbp;SBP;Cardiovascular;qn;;;continuous
+direct;p4079_i0_a0;dbp;DBP;Cardiovascular;qn;;;continuous
+direct;p21001_i0;bmi;BMI;Adiposity;qn;;;continuous
+direct;p48_i0;waist;Waist;Adiposity;qn;;;continuous
+direct;p49_i0;hip;Hip;Adiposity;qn;;;continuous
+direct;p30740_i0;glucose;Glucose;Glycemic;qn;;;continuous
+direct;p30750_i0;hba1c;HbA1c;Glycemic;qn;;;continuous
+direct;p30690_i0;chol;Total cholesterol;Lipid;qn;;;continuous
+direct;p23405_i0;ldl;LDL cholesterol;Lipid;qn;;;continuous
+direct;p30760_i0;hdl;HDL cholesterol;Lipid;qn;;;continuous
+direct;p30870_i0;tgs;Triglycerides;Lipid;qn;;;continuous
+direct;p30620_i0;alat;ALAT;Liver;qn;;;continuous
+direct;p30730_i0;ggt;GGT;Liver;qn;;;continuous
+direct;p30610_i0;alp;ALP;Liver;qn;;;continuous
+direct;p23403_i0;vldl;VLDL cholesterol;Lipid;qn;;;continuous
+direct;p30710_i0;crp;C-reactive protein;Cardiovascular;qn;;;continuous
+direct;p23099_i0;body_fat_perc;Body fat %;Adiposity;qn;;;continuous
+direct;p40061_i2;pdff;PDFF;Liver;qn;;;continuous
+direct;p40062_i2;ct1;Liver iron corrected T1;Liver;qn;;;continuous
+direct;p22009_a1;pc1;genetic PC1;;none;;;none
+direct;p22009_a2;pc2;genetic PC2;;none;;;none
+direct;p22009_a3;pc3;genetic PC3;;none;;;none
+direct;p22009_a4;pc4;genetic PC4;;none;;;none
+direct;p22009_a5;pc5;genetic PC5;;none;;;none
+direct;p22009_a6;pc6;genetic PC6;;none;;;none
+direct;p22009_a7;pc7;genetic PC7;;none;;;none
+direct;p22009_a8;pc8;genetic PC8;;none;;;none
+direct;p22009_a9;pc9;genetic PC9;;none;;;none
+direct;p22009_a10;pc10;genetic PC10;;none;;;none
+icd10_flag;diag_icd10;has_cirrhosis;Cirrhosis;Metabolic disease;binary;K74;0.0;binary
+icd10_flag;diag_icd10;has_ald;Alcohol related Liver disease;Metabolic disease;binary;K70;0.0;binary
+icd10_flag;diag_icd10;has_fatty_Liver;Fatty (change of) Liver;Metabolic disease;binary;K76.0;0.0;binary
+icd10_flag;diag_icd10;has_t2d;Type 2 diabetes;Metabolic disease;binary;E11;0.0;binary
+icd10_flag;diag_icd10;has_mi;Myocardial infarction;Cardiovascular disease;binary;I21,I22;0.0;binary
+icd10_flag;diag_icd10;has_stroke;Stroke;Cardiovascular disease;binary;I63,I64;0.0;binary
+icd10_flag;diag_icd10;has_cad;Coronary artery disease;Cardiovascular disease;binary;I25;0.0;binary
+direct;p6149_i0;has_dentures;Dentures;Dental caries;binary;;;binary
+direct;p26414;education;Education score;Sociodemographic factor;qn;;;continuous
+direct;p26411;income;Income score;Sociodemographic factor;qn;;;continuous
