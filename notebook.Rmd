@@ -272,14 +272,20 @@ p_combined_bmi_adj
 data_protein_batch <- readRDS(DATA_PROTEIN_BATCH) %>%
   dplyr::rename(batch = Batch) %>%
   dplyr::mutate(z_fasting_time = as.numeric(scale(Fasting_time))) %>%
-  dplyr::select(-ins_index, -PlateID, -Fasting_time)
+  dplyr::select(-ins_index, -PlateID, -Fasting_time) %>%
+  dplyr::rename_with(toupper, -c(eid, batch, z_fasting_time))
 
 protein_panel_map <- readRDS(DATA_PROTEIN_MAP) %>%
   dplyr::rename(protein = Assay, panel = Panel) %>%
+  dplyr::mutate(protein = toupper(protein)) %>%
   dplyr::select(protein, panel)
 
-panel_lookup       <- stats::setNames(protein_panel_map$panel, protein_panel_map$protein)
-PROTEINS           <- protein_panel_map$protein
+panel_lookup <- stats::setNames(
+  protein_panel_map$panel,
+  protein_panel_map$protein
+)
+
+PROTEINS <- protein_panel_map$protein
 
 data_protein <- data %>%
   dplyr::inner_join(data_protein_batch, by = "eid")
