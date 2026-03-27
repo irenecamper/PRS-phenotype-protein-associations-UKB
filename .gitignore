@@ -17,8 +17,8 @@ inputs/pro_batch_fastingtime.rds
 inputs/protein_panel_map.rds
 
 # ── Generated outputs (large, reproducible) ───────────────────────────────────
-figures/
-results/
+figures/*
+results/*
 
 # ── OS / editor ───────────────────────────────────────────────────────────────
 .DS_Store
